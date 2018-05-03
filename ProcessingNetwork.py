@@ -13,15 +13,20 @@ class ProcessingNetwork():
             
     def createNodeRecursive(self,instanceDict):
         iName = instanceDict['name']
+        
         if(iName in self.instanceMap):
             return self.instanceMap[iName]
+
         if('settings' in self.networkDef[iName]):
-            self.instanceMap[iName] = self.networkDef[iName]['type'](self.networkDef[iName]['settings'])            
+            self.instanceMap[iName] = self.networkDef[iName]['type'](self.networkDef[iName]['settings'],instanceDict['dependencies'])            
         else:
             self.instanceMap[iName] = self.networkDef[iName]['type']()            
         
         instance = self.instanceMap[iName] 
         instanceDict['instance'] = self.instanceMap[iName]        
+        
+        
+        instance.setSetting('name',iName)
         for depName in instanceDict['dependencies']:
             depInstance = self.createNodeRecursive(self.networkDef[depName])
             instance.setDependency(depName,depInstance)

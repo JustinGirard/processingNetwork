@@ -6,8 +6,8 @@ If the node has dependencies, it makes sure that the child node has 'processed' 
 Thus, processing node can form a computation graph (which should be acyclic).
 '''
 class ProcessingNode():
-    def __init__(self,settings = {}):
-        self.dependencies = {}
+    def __init__(self,settings = {},dependencies = {}):
+        self.dependencies = dependencies
         self.settings = {}
         self.do_init()
         self.settings.update(settings)
@@ -24,6 +24,10 @@ class ProcessingNode():
     def do_process(self):
         raise Exception('Not Implemented')
         pass
+    
+    def setSetting(self,k,val):
+        self.settings[k]=val
+
     
     def getDependencies(self):
         return self.dependencies
