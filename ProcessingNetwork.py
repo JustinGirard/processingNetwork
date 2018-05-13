@@ -4,43 +4,48 @@ A Processing Network (PN) is given a json description of a processing network.
 The PN constructs this network, and then gives access to the central 'process' method.
 '''
 class ProcessingNetwork():
-    def __init__(self,networkDef,root= ''):
+    def __init__(self,networkDef,root=''):
         self.networkDef = networkDef
         self.instanceMap = {}
         self.root = root
-        for instanceName in networkDef.keys():
+        for instanceName in networkDef:
             self.createNodeRecursive(networkDef[instanceName])
             
     def createNodeRecursive(self,instanceDict):
         iName = instanceDict['name']
+        if not iName in self.instanceMap:
+            if 'settings' in self.networkDef[iName]:
+                settings=self.networkDef[iName]['settings']
+            else:
+                settings=None
+            if 'dependencies' in self.networkDef[iName]:
+                dependency_list=self.networkDef[iName]['dependencies']
+            else:
+                dependency_list=None
+            self.instanceMap[iName] = self.networkDef[iName]['type'](settings=settings,dependency_list=dependency_list)            
+            instance = self.instanceMap[iName] 
+            instanceDict['instance'] = self.instanceMap[iName]        
         
-        if(iName in self.instanceMap):
-            return self.instanceMap[iName]
+            instance.setSetting('name',iName)
+           
+            for depName in instanceDict['dependencies']:
+                depInstance = self.createNodeRecursive(self.networkDef[depName])
+                instance.setDependency(depName,depInstance) 
+        return self.instanceMap[iName]
 
-        if('settings' in self.networkDef[iName]):
-            self.instanceMap[iName] = self.networkDef[iName]['type'](self.networkDef[iName]['settings'],instanceDict['dependencies'])            
-        else:
-            self.instanceMap[iName] = self.networkDef[iName]['type']()            
-        
-        instance = self.instanceMap[iName] 
-        instanceDict['instance'] = self.instanceMap[iName]        
-        
-        
-        instance.setSetting('name',iName)
-        for depName in instanceDict['dependencies']:
-            depInstance = self.createNodeRecursive(self.networkDef[depName])
-            instance.setDependency(depName,depInstance)
-
-    def process(self,feature={}, rootIn = ''):
+    def process(self,feature=None, rootIn=''):
+        if feature==None:
+            feature={}
         targetNode = rootIn
-        if(rootIn == ''):
+        if rootIn == '':
             targetNode = self.root
 
-        if(targetNode == ''):
+        if targetNode == '':
             for instanceName in self.networkDef.keys():
                 feature = self.instanceMap[instanceName].process(feature)
         else:
             feature = self.instanceMap[targetNode].process(feature)
         return feature
+
     def __str__(self):
          return self.networkDef
