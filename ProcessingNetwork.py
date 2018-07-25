@@ -50,8 +50,13 @@ class ProcessingNetwork():
 
         if targetNode == '':
             for instanceName in self.networkDef.keys():
+                #print(instanceName + " called by ProcessingNetwork")
                 feature = self.instanceMap[instanceName].process(feature)
+                #print("back in ProcessingNetwork")
+                #print("call from " + instanceName + " has returned with feature=")
+                #print(feature)
         else:
+            #print(targetNode + " called by ProcessingNetwork")
             feature = self.instanceMap[targetNode].process(feature)
         return feature
 

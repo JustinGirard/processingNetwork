@@ -26,11 +26,18 @@ class ProcessingNode():
         pass
 
     def process(self,feature):
+        #print(self.settings['name']+".process()")
+        #print("feature=")
+        #print(feature)
         if not self.processed:
+            #print(self.settings['name'] + " executing")
             for k in self.dependencies:
+                #print(self.settings['name']+ " calling " + self.dependencies[k].settings['name'])
                 self.dependencies[k].process(feature)
-            retVal=self.do_process(feature)
+            self.retVal=self.do_process(feature)
             self.processed=True
+        #else:
+            #print(self.settings['name'] + " called but has already executed")
         return self.retVal
 
     def do_process(self):
