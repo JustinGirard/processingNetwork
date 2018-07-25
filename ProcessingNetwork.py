@@ -33,7 +33,15 @@ class ProcessingNetwork():
                 instance.setDependency(depName,depInstance) 
         return self.instanceMap[iName]
 
+    def getInstance(self,iName):
+        return self.instanceMap[iName]
+
     def process(self,feature=None, rootIn=''):
+        # We have to set every node in the network to it's "unprocessed" state
+                 
+        for instanceName in self.networkDef.keys():
+            self.instanceMap[instanceName].resetProcessed()
+
         if feature==None:
             feature={}
         targetNode = rootIn

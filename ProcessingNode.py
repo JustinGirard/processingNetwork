@@ -17,18 +17,22 @@ class ProcessingNode():
         self.dependency_list=dependency_list
         self.settings = {}
         self.settings.update(settings)
-        self.do_init()
-
+        self.retVal=None
+        self.processed=False
+        self.do_init() 
 
     def do_init(self):
         raise Exception('Not Implemented')
         pass
 
     def process(self,feature):
-        for k in self.dependencies:
+        if not self.processed:
+            for k in self.dependencies:
                 self.dependencies[k].process(feature)
-        return self.do_process(feature)
-    
+            retVal=self.do_process(feature)
+            self.processed=True
+        return self.retVal
+
     def do_process(self):
         raise Exception('Not Implemented')
         pass
@@ -41,4 +45,8 @@ class ProcessingNode():
     
     def setDependency(self,did,dependency):
         self.dependencies[did] = dependency
+   
+    def resetProcessed(self):
+        self.processed=False
+        self.retVal=None
  
