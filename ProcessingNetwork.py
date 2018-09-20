@@ -3,6 +3,11 @@ A Processing Network is a facade to a collection of processing nodes.
 A Processing Network (PN) is given a json description of a processing network.
 The PN constructs this network, and then gives access to the central 'process' method.
 '''
+# TODO: Limit feature access to the subset of keys requested to enforce robust networks
+# ----- {k: bigdict.get(k, None) for k in ('l', 'm', 'n')} <--- filters for relevant keys
+# TODO: Use Named Dependencies instead of a straight positional list
+# TODO: pas feature and last feature in a way better way
+
 class ProcessingNetwork():
     def __init__(self,networkDef,root=''):
         self.networkDef = networkDef
@@ -10,7 +15,8 @@ class ProcessingNetwork():
         self.root = root
         for instanceName in networkDef:
             self.createNodeRecursive(networkDef[instanceName])
-            
+        self.lastFeature = {}
+
     def createNodeRecursive(self,instanceDict):
         iName = instanceDict['name']
         if not iName in self.instanceMap:
@@ -18,11 +24,15 @@ class ProcessingNetwork():
                 settings=self.networkDef[iName]['settings']
             else:
                 settings=None
+            upstream_dependency_list = []
+            if 'upstream_dependencies' in self.networkDef[iName]:
+                upstream_dependency_list=self.networkDef[iName]['upstream_dependencies']
+
             if 'dependencies' in self.networkDef[iName]:
                 dependency_list=self.networkDef[iName]['dependencies']
             else:
                 dependency_list=None
-            self.instanceMap[iName] = self.networkDef[iName]['type'](settings=settings,dependency_list=dependency_list)            
+            self.instanceMap[iName] = self.networkDef[iName]['type'](settings=settings,dependency_list=dependency_list,upstream_dependency_list=upstream_dependency_list)            
             instance = self.instanceMap[iName] 
             instanceDict['instance'] = self.instanceMap[iName]        
         
@@ -51,13 +61,15 @@ class ProcessingNetwork():
         if targetNode == '':
             for instanceName in self.networkDef.keys():
                 #print(instanceName + " called by ProcessingNetwork")
-                feature = self.instanceMap[instanceName].process(feature)
+                feature = self.instanceMap[instanceName].process(feature,self.lastFeature)
                 #print("back in ProcessingNetwork")
                 #print("call from " + instanceName + " has returned with feature=")
                 #print(feature)
         else:
             #print(targetNode + " called by ProcessingNetwork")
-            feature = self.instanceMap[targetNode].process(feature)
+            feature = self.instanceMap[targetNode].process(feature,self.lastFeature)
+
+        self.lastFeature = feature
         return feature
 
     def __str__(self):

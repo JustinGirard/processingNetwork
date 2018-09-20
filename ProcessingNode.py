@@ -6,15 +6,19 @@ If the node has dependencies, it makes sure that the child node has 'processed' 
 Thus, processing node can form a computation graph (which should be acyclic).
 '''
 class ProcessingNode():
-    def __init__(self,settings=None,dependencies=None,dependency_list=None):
+    def __init__(self,settings=None,dependencies=None,dependency_list=None,upstream_dependency_list=None):
         if settings==None:
             settings={}
         if dependencies==None:
             dependencies={}
         if dependency_list==None:
             dependency_list=[]
+        if upstream_dependency_list==None:
+            upstream_dependency_list=[]
+
         self.dependencies = dependencies
         self.dependency_list=dependency_list
+        self.upstream_dependency_list=upstream_dependency_list
         self.settings = {}
         self.settings.update(settings)
         self.retVal=None
@@ -24,11 +28,13 @@ class ProcessingNode():
     def do_init(self):
         raise Exception('Not Implemented')
         pass
-
-    def process(self,feature):
+    
+    def process(self,feature,lastFeature={}):
         #print(self.settings['name']+".process()")
         #print("feature=")
         #print(feature)
+        self.lastFeature = lastFeature
+        self.feature = feature
         if not self.processed:
             #print(self.settings['name'] + " executing")
             for k in self.dependencies:
@@ -40,6 +46,27 @@ class ProcessingNode():
             #print(self.settings['name'] + " called but has already executed")
         return self.retVal
 
+    def get_dependency_value(self,keyInt):
+        if self.dependency_list:
+            valueKey = self.feature[self.dependency_list [keyInt]]
+            return valueKey 
+        return None
+
+    def get_upstream_dependency_value(self,keyInt):
+        if self.upstream_dependency_list:
+            valueKey = None
+            if self.upstream_dependency_list [keyInt] in self.lastFeature:
+                valueKey = self.lastFeature[self.upstream_dependency_list [keyInt]]
+            return valueKey 
+        return None
+
+    def get_dependency_instance(self,keyInt):
+        if self.dependency_list:
+            valueKey = self.dependencies[keyInt]
+            return valueKey 
+        return None
+
+
     def do_process(self):
         raise Exception('Not Implemented')
         pass
@@ -47,6 +74,15 @@ class ProcessingNode():
     def setSetting(self,k,val):
         self.settings[k]=val
    
+    def setValue(self,dictData={}):
+        self.feature[self.settings['name']] = dictData
+
+    def set(self,key='',dictData={}):
+        if key == '':
+            self.setValue(dictData)
+        else:
+            self.feature[self.settings['name']][key] = dictData
+
     def getDependencies(self):
         return self.dependencies
     
