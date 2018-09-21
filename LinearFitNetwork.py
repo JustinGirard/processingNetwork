@@ -1,103 +1,83 @@
 import sys
-sys.path.append('../')
-
-import financialNodes as fn
-import nodes as nd
-import pandas as pd
-pd.core.common.is_list_like = pd.api.types.is_list_like
-import numpy as np
-import math
-import datetime
-import random
-from pprint import pprint
-from datetime import timedelta
-from financialNodes import MarketExperiment
-from processingNetwork.ProcessingNetwork import ProcessingNetwork
-from processingNetwork.ProcessingNode import ProcessingNode
-
-
+sys.path.append("/home/paxml-user/")
 import pprint
+import numpy as np
+import pandas as pd
+import nodes as nd
 
-def build_toy_dataset(N, w, noise_std=0.1):
-    D = len(w)
-    x = np.random.randn(N, D)
-    
-    y = np.dot(x, w) 
-    y = y  + np.random.normal(0, noise_std, size=N)
-    return x, y
-
-
-# ---> LoadData ---> PrepareFeature1 ---> 
+from .ProcessingNode import ProcessingNode 
+# ---> LoadData ---> 
 class LoadData(ProcessingNode):
     def do_init(self):
         pass
     def do_process(self,feature):
         feature_dict=feature[self.settings['input']].copy()
-        feature[self.settings['name']]=[{'lat1': 123, 'lon1':200,'lat2': 12, 'lon2':12}]
+        #print('keys')
+        #print(feature_dict.keys())
+        #print('elevation')
+        #print(feature_dict['elevation'])
+        #print('latln')
+        #print(feature_dict['latln'])
+        #print('-------------')
+        
+        # These two lines accomplish the identical task. The second variable is not reccomended.
+        self.setValue(feature_dict)
+        self.set(key='',dictData=feature_dict)
+        self.set(key='test',dictData="test_value")
+        #print(feature)
+        #['latln', 'elevation'])
         return feature
 
+
+# Step 1: Basic training and regression
+# Step 2: visualize information on a simple plot over time
+# Step 3: 
     
 class BatchRegressionNode(ProcessingNode):
     '''
-    This class trains any model. It buffers runlengths of features and trains a model when it is ready.
-    The job of this system is to forcast the relationship between the predictor and amount of profit. 
-    In circumstances where the profit looks negative, it actively prevents trading.
-    
+    This class trains a BR model. It buffers runlengths of features and trains a model when it is ready.
     '''
     def do_init(self):
         self.regressor = None
         self.trainingFeature = []
         self.testingFeature = []
-        self.countTrain = self.settings['trainCount']
-        self.countTest = self.settings['testCount']
+        self.pastFeatures = []
+        try:
+            self.countTrain = self.settings['trainCount']
+            self.countTest = self.settings['testCount']
+            self.xKey = self.settings['xKey']
+            self.yKey = self.settings['yKey']
+            self.predictionLength = self.settings['predictionLength']
+            # TODO: generalize so the model can be configured from outside of the class.
+        except:
+            raise Exception("Could not access settings 'trainCount' and/or 'testCount' in BatchRegressionNode")
+            
         self.rawFeatures = []
-        self.finishedFeatures = []
         self.modelIndex = 0
         pass
     
     def loadRawFeature(self,feature):
-        
-        predictionInt = self.get_dependency_value(0)
-        symbols =   feature[self.dependency_list[1]+'_securities']
-        pastPredictionInt = self.get_upstream_dependency_value(0)
-        pastOrders = self.get_upstream_dependency_value(1)
-        
-        if len(self.lastFeature) > 0:
-            pastSymbols =   self.lastFeature[self.upstream_dependency_list[2]+'_securities']
-            
-            # Create Dictionary of Trades
-            pastSymbolTrades = {}
-            for i in range(0,len(pastPredictionInt)):
-                pastSymbolTrades[pastSymbols[i]]=pastPredictionInt[i]
-            
-            if pastPredictionInt and pastOrders:
-                if len(pastOrders) > 0:
-                    for ro in pastOrders['realOrders']:
-                        if ro:
-                            security = ro[1][0]
-                            prediction = pastSymbolTrades[security]
-                            rawFeature = {'order':ro, 'prediction':prediction, }
-                            self.rawFeatures.append(rawFeature)
-                    for ro in pastOrders['paperOrders']:
-                        if ro:
-                            security = ro[1][0]
-                            prediction = pastSymbolTrades[security]
-                            rawFeature = {'order':ro, 'prediction':prediction, }
-                            self.rawFeatures.append(rawFeature)
-    
-    def processFeatures(self):
-        # 1 Move the finished orders over for processing
-        rawf = self.rawFeatures
-        for i in range(len( rawf)-1,-1,-1):
-            if len(rawf[i]['order'][1]) == 13:
-                self.finishedFeatures.append([rawf[i]['order'][1][11]] + [rawf[i]['prediction'] ])
-                rawf.pop(i)
+        dataIn = self.get_dependency_value(0)
+        trainingData = dataIn[self.xKey]
+        targetValues = dataIn[self.yKey]
+        #TODO - Generalize so this supports all shapes of array.
+        newFeature = np.append(trainingData,targetValues)
+        self.rawFeatures.append(newFeature)
+        #print ('adding features')
+        #print(newFeature)
                     
     def normalizeArray(self,arr,mean,std):
-        df = pd.DataFrame(arr)
-        df = df-mean
-        df = df/std
-        x = np.array(df)
+        #print(arr)
+        # This is very sketchy. Replace with a method to test for lists vs single elements
+        try:
+            l = len(arr)
+            df = pd.DataFrame(arr)
+            df = df-mean
+            df = df/std
+            x = np.array(df)
+        except:
+            x = arr-mean
+            x = arr/std
         return x
     
     def unNormalizeArray(self,arr,mean,std):
@@ -108,269 +88,126 @@ class BatchRegressionNode(ProcessingNode):
         return x
     
     def doTraining(self):
-        print(len(self.finishedFeatures))
-        if len(self.finishedFeatures) > self.countTrain:
+        #print(len(self.rawFeatures))
+        if len(self.rawFeatures) > self.countTrain:
+            self.pastFeatures = self.pastFeatures  + self.rawFeatures 
+            self.rawFeatures = []
+            #print(self.pastFeatures)
+            dataSet = np.array(self.pastFeatures)
             #self.finishedFeatures = []
             #if (self.regressor == None):
-            df = pd.DataFrame(self.finishedFeatures)
-            D = 1 # one dimension
+            #print (dataSet[0])
+            D = len(dataSet[0])-1 # tie the dimension to the length of the feature minus the predictor
+            df = pd.DataFrame(dataSet )
             self.modelIndex = self.modelIndex + 1
             self.regressor = nd.BRNode({'dimensions':(D,1),'name':'thresholdFit' + str(self.modelIndex)})
             self.r_means = df.mean()
             self.r_stds = df.std()
+            xt = []
 
-            #df[1] = df[1]-df[1].mean()
-            #df[0] = df[0]-df[0].mean()
-            #df[1] = df[1]/df[1].std()
-            #df[0] = df[0]/df[0].std()
-            xt = self.normalizeArray(df[1],self.r_means[1],self.r_stds[1])
-            xt = xt.reshape(-1,1)
-
-            yt = self.normalizeArray(df[0],self.r_means[0],self.r_stds[0])
+            for i in range(0,D):
+                arr = self.normalizeArray(df[i],self.r_means[i],self.r_stds[i])
+                xt.append(arr)
+                xt[i] = xt[i]
+            
+            xt = np.array(xt )
+            xt = xt[:,:,0]
+            xt = xt.transpose()
+            #display(df)
+            yt = self.normalizeArray(df[D],self.r_means[D],self.r_stds[D])
             yt = yt[:,0]
-            #xt = np.array(df[1]).reshape(-1,1)
-            #yt = np.array(df[0])
+            yt = np.array(yt )
+
+            print ('shape of training set:')
             print(np.shape(xt))
             print(np.shape(yt))
+            
 
-            #display(xt)
-            #display(yt)
             self.regressor.train(xt,yt)
             self.regressor.criticise(xt,yt)
-            #self.finishedFeatures
-            print('clearing features')
-            self.finishedFeatures = []
-            self.rawFeatures = []
+            #print('clearing features')
     
+
     def doPredict(self):
             if (self.regressor):
-                predictionInt = self.get_dependency_value(0)
-                predictionIntNormal = self.normalizeArray(predictionInt,self.r_means[1] ,self.r_stds[1])
-                p = self.regressor.predict(predictionIntNormal,11 )
-                p = pd.DataFrame(np.array(p)[:,:,0])
+                dataIn = self.get_dependency_value(0)
+                trainingData = dataIn[self.xKey]
+                #targetValues = dataIn[self.yKey]
+                xt = []
+
+                #print ('shape of training set:')
+                for i in range(0,len(trainingData)):
+                    arr = self.normalizeArray(trainingData[i],self.r_means[i],self.r_stds[i])
+                    xt.append(arr)
+                    xt[i] = xt[i]
+                xt = np.array(xt)
+                
+                
+                
+                p = self.regressor.predict(xt,self.predictionLength )
+                #display(p)
+                p = np.array(p)
+                #print(p)
+                if len(np.shape(p)) ==3:
+                    p = pd.DataFrame(np.array(p)[:,:,0])
+                else:
+                    p = pd.DataFrame(np.array(p))
+                    
                 means = p.mean()
                 stds = p.std()
-                return means
-            return []                
+                #print('Predict Results')
+                #display(p)
+                #print ('means',means)
+                #print ('stds',stds)
+                
+                return [means,stds]
+            return [0,0]                
                 
     def do_process(self,feature):
         self.loadRawFeature(feature)
-        self.processFeatures()
         self.doTraining()
-        means = self.doPredict()
-        
+        [means,stds] = self.doPredict()
+        ym = 0
+        ys = 0
+        if len(self.pastFeatures) > 0:
+
+            dataSet = np.array(self.pastFeatures)
+            D = len(dataSet[0])-1 # tie the dimension to the length of the feature minus the predictor
+
+            ym = self.unNormalizeArray(means,self.r_means[D],self.r_stds[D])
+            ys = self.unNormalizeArray(stds,self.r_means[D],self.r_stds[D])
+
         #Set the mean value
-        feature[self.settings['name']] = means
-        
-        output = False
-        if output==True:
-            print('-----------------------')
-            #print(self.feature)
-            print('pastOrders')
-            print(pastOrders)
-            print('pastPredictionInt')
-            print(pastPredictionInt)
-            print('predictionInt')
-            print(predictionInt)
-            print('-----------------------')
-        
-        return feature
-
-
-
-
-class OrderSubmitterNew(ProcessingNode):    
-    def do_init(self):
-        self.me = self.settings['market_experiment']
-        self.orders = []
-        pass
-    
-    def do_process(self,feature):
-        if self.dependency_list:
-            valueKey = self.dependency_list[0]
-            sec_key = self.dependency_list[1]
-        if (valueKey not in feature):
-            return feature
-        
-        #pprint.pprint(feature)
-        
-        purchase_decision = feature[valueKey]
-        securities = feature[sec_key+'_securities']
-        realOrders = []
-        paperOrders = []
-        
-        predictionFilter = self.get_dependency_value(2)
-        #symbols =   feature[self.dependency_list[1]+'_securities']
-
-        
-        for i in range(len(securities)):
-            savedOrder = None
-            td = timedelta(days=self.settings['dayHold'],minutes=self.settings['minuteHold'])
-            
-            
-            if purchase_decision[i] and len(predictionFilter) > 0 and predictionFilter[i] > 0.008:
-                #print ('(purchase decision, prediction filter)')
-                #print (purchase_decision[i],predictionFilter[i])
-                
-                savedOrder = self.me.do_order_bracket(k=securities[i],limit_timedelta=td)
-                realOrders.append(savedOrder)
-                self.orders.append(savedOrder)
-            # Submit some paper orders so that performance can be studied.
-            if(savedOrder == None or savedOrder == []):
-                savedOrder = self.me.do_order_bracket(k=securities[i],testOrder=True,limit_timedelta=td)
-                paperOrders.append(savedOrder)
-                self.orders.append(savedOrder)
-        orders = {'realOrders':realOrders,'paperOrders':paperOrders}
-        feature[self.settings['name']]=orders
-        
+        self.setValue({'means':ym,'stds':ys})
         return feature
     
-    
-
-
-def init(settings={}):
-
-	
-    print ('initing')
-
-def run_step():
-    
-    
-
-    feature={}
-    
- 
-    import pprint
- 
-    f = me.context['purchaseDecisionNetwork'].process(feature)
- 
-        
-    print("me.context['value_total']= "+str(me.context['value_total']))  
-    return resp
-
-def addLog(label,val):
-    global me
-    me.addLog(label,val)
-
-def getLog(elems=slice(None,None)):
-    global me
-    log = me.getLog()
-    newlog = []
-    for key in list(log.keys()):
-        entry=log[key]
-        entry['date']=key
-        newlog.append(entry)
-    return newlog[elems]
-
-def runExperiment():
-    init()
-    ctx = run_step()
-    while ctx != 0:
-        ctx =run_step()
-
-def defaultNetwork(me,settings):
-    #
-    #
-    #
-    # Train the purchaseDecisionNetwork network
-    # This network processes data, and arrives at a prediction
+def defaultNetwork(settings):
     purchaseDecisionNetwork_def = {}
 
     purchaseDecisionNetwork_def['loadData'] = {'name': 'loadData',
                           'type': LoadData,
                           'settings': {'input':'predict_features'},
                           'dependencies': []}
-
-    #purchaseDecisionNetwork_def['prepareFeature'] = { 'name': 'prepareFeature',
-    #                           'type': PrepareFeature,
-    #                           'settings': {},
-    #                           'dependencies': ['loadData'] }
     
-    #purchaseDecisionNetwork_def['prepareFeature1'] = { 'name': 'prepareFeature1',
-    #                           'type': PrepareFeature1,
-    #                           'settings': {
-    #                                         'begin':0,'end':6,'index':5
-    #                                        },
-    #                           'dependencies': ['loadData'] }
-    
-    #purchaseDecisionNetwork_def['fitPolynomial'] = { 'name': 'fitPolynomial',
-    #                           'type': FitPolynomial,
-    #                           'settings': {'degree':settings['degree'],'n_points':6},
-    #                           'dependencies': ['prepareFeature1'] }
-    
-    
-    #purchaseDecisionNetwork_def['PCA'] = {'name': 'PCA',
-    #                      'type': PCA,
-    #                      'settings': {'dimensions':4},
-    #                      'dependencies': ['prepareFeature']} 
+    purchaseDecisionNetwork_def['BatchRegressionNode'] = {'name': 'BatchRegressionNode',
+                          'type': BatchRegressionNode,
+                          'settings': {'trainCount':50,
+                                       'testCount':100,
+                                       'xKey':'latln',
+                                       'yKey':'elevation',
+                                       'predictionLength':5},
+                          'dependencies': ['loadData']
+                            }
 
+    pn=ProcessingNetwork(purchaseDecisionNetwork_def)
+    return  pn
 
-
-    #purchaseDecisionNetwork_def['nearestNeighbor'] = {'name': 'nearestNeighbor',
-    #                      'type': NearestNeighbor,
-    #                      'settings': {'radius': settings['NN_radius']},
-    #                      'dependencies': ['PCA']} 
+# This builds a random dataset with a linear relationship underneath, governed by y= w*x + b
+def build_toy_dataset(N, w, noise_std=0.01):
+    D = len(w)
+    x = np.random.randn(N, D)*5
     
-    
-    #purchaseDecisionNetwork_def['purchaseDecision'] = {'name': 'purchaseDecision',
-    #                      'type': PurchaseDecision,
-    #                      'settings': {'min_neighbors': settings['NN_min_neighbors'], 
-    #                                   'min_gain': settings['NN_min_gain'],
-    #                                   'min_ratio': settings['NN_min_ratio']},
-    #                      'dependencies': ['nearestNeighbor']}    
-    
-    #purchaseDecisionNetwork_def['purchaseDecision1'] = {'name': 'purchaseDecision1',
-    #                      'type': PurchaseDecision1,
-    #                      'settings': { 'min_gain': settings['min_gain'] },
-    #                      'dependencies': ['fitPolynomial']}   
-    
-    #purchaseDecisionNetwork_def['purchaseDecisionFilter'] = {'name': 'purchaseDecisionFilter',
-    #                      'type': BatchRegressionNode,
-    #                      'settings': { 'trainCount': 1500,
-    #                                   'testCount': 1500},
-    #                      'dependencies': ['fitPolynomial','loadData'],
-    #                      'upstream_dependencies': ['fitPolynomial','orderSubmitter','loadData']}   
-                    
+    y = np.dot(x, w) 
+    y = y  + np.random.normal(0, noise_std, size=N)
+    return x, y
 
-    #purchaseDecisionNetwork_def['tradeEnterAgent'] = {'name': 'tradeEnterAgent',
-    #                      'type': TradeEnterAgent,
-    #                      'settings': {'nnRadius':settings['NN_radius'], 
-    #                                   'nnGainMean':settings['NN_min_gain'],
-    #                                   'nnRatio':  settings['NN_min_ratio'],                                 
-    #                                   'marketExplorer': me, 
-    #                                   'daysInWindow':-10},
-    #                      'dependencies': ['purchaseDecision','PCA','nearestNeighbor','loadData']}
-    
-    
-    #purchaseDecisionNetwork_def['orderSubmitter'] = {'name': 'orderSubmitter',
-    #                      'type': OrderSubmitterNew,
-    #                      'settings': {'market_experiment':me,'dayHold':0,'minuteHold':20},
-    #                      'dependencies': ['purchaseDecision1','loadData','purchaseDecisionFilter']}        
-
-    me.context['purchaseDecisionNetwork']=ProcessingNetwork(purchaseDecisionNetwork_def)
-    pn = me.context['purchaseDecisionNetwork']
-    return  me.context['purchaseDecisionNetwork']
-    
-
-def runExperiment():
-
-    import datetime
-    block_id = datetime.datetime.now().isoformat(timespec='seconds')
-
-    base_settings = { 'time_res': 'minute'
-                    }
-     
-    settings=base_settings.copy()
-    settings['securities']=secs
-    settings.update(dateRange)
-
-    print ('Running Test Experiment')
-
-    init(settings)
-    i = 0
-    while run_step():
-        i = i + 1
-        print('.')
-        #if i > 20:
-        #    break
-    print('complete')
