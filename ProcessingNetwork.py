@@ -33,7 +33,17 @@ class ProcessingNetwork():
             else:
                 dependency_list=None
             settings['name'] = iName
-            self.instanceMap[iName] = self.networkDef[iName]['type'](settings=settings,dependency_list=dependency_list,upstream_dependency_list=upstream_dependency_list)            
+
+
+            # Assign the type
+            typeVar = self.networkDef[iName]['type']
+            
+            if isinstance(self.networkDef[iName]['type'], str):
+                import importlib
+                typeVar = getattr(importlib.import_module(self.networkDef[iName]['module']),self.networkDef[iName]['type'])
+
+
+            self.instanceMap[iName] = typeVar(settings=settings,dependency_list=dependency_list,upstream_dependency_list=upstream_dependency_list)            
             instance = self.instanceMap[iName] 
             instanceDict['instance'] = self.instanceMap[iName]        
         
