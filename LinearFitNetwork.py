@@ -1,24 +1,18 @@
-import sys
-sys.path.append("/home/paxml-user/")
 import pprint
 import numpy as np
 import pandas as pd
 import nodes as nd
+import time
 
 from .ProcessingNode import ProcessingNode 
+from .ProcessingNetwork import ProcessingNetwork 
+
 # ---> LoadData ---> 
 class LoadData(ProcessingNode):
     def do_init(self):
         pass
     def do_process(self,feature):
         feature_dict=feature[self.settings['input']].copy()
-        #print('keys')
-        #print(feature_dict.keys())
-        #print('elevation')
-        #print(feature_dict['elevation'])
-        #print('latln')
-        #print(feature_dict['latln'])
-        #print('-------------')
         
         # These two lines accomplish the identical task. The second variable is not reccomended.
         self.setValue(feature_dict)
@@ -29,9 +23,6 @@ class LoadData(ProcessingNode):
         return feature
 
 
-# Step 1: Basic training and regression
-# Step 2: visualize information on a simple plot over time
-# Step 3: 
     
 class BatchRegressionNode(ProcessingNode):
     '''
@@ -100,7 +91,9 @@ class BatchRegressionNode(ProcessingNode):
             D = len(dataSet[0])-1 # tie the dimension to the length of the feature minus the predictor
             df = pd.DataFrame(dataSet )
             self.modelIndex = self.modelIndex + 1
-            self.regressor = nd.BRNode({'dimensions':(D,1),'name':'thresholdFit' + str(self.modelIndex)})
+            dt = time.time()
+            dt = str(dt)
+            self.regressor = nd.BRNode({'dimensions':(D,1),'name':'thresholdFit' + str(self.modelIndex) + str(dt)})
             self.r_means = df.mean()
             self.r_stds = df.std()
             xt = []
@@ -124,7 +117,7 @@ class BatchRegressionNode(ProcessingNode):
             
 
             self.regressor.train(xt,yt)
-            self.regressor.criticise(xt,yt)
+            #self.regressor.criticise(xt,yt)
             #print('clearing features')
     
 
@@ -155,10 +148,6 @@ class BatchRegressionNode(ProcessingNode):
                     
                 means = p.mean()
                 stds = p.std()
-                #print('Predict Results')
-                #display(p)
-                #print ('means',means)
-                #print ('stds',stds)
                 
                 return [means,stds]
             return [0,0]                

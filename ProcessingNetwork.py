@@ -32,15 +32,17 @@ class ProcessingNetwork():
                 dependency_list=self.networkDef[iName]['dependencies']
             else:
                 dependency_list=None
+            settings['name'] = iName
             self.instanceMap[iName] = self.networkDef[iName]['type'](settings=settings,dependency_list=dependency_list,upstream_dependency_list=upstream_dependency_list)            
             instance = self.instanceMap[iName] 
             instanceDict['instance'] = self.instanceMap[iName]        
         
             instance.setSetting('name',iName)
            
-            for depName in instanceDict['dependencies']:
+            for depParameter in instanceDict['dependencies'].keys():
+                depName = instanceDict['dependencies'][depParameter]
                 depInstance = self.createNodeRecursive(self.networkDef[depName])
-                instance.setDependency(depName,depInstance) 
+                instance.setDependency(depParameter,depInstance) 
         return self.instanceMap[iName]
 
     def getInstance(self,iName):
@@ -48,9 +50,6 @@ class ProcessingNetwork():
 
     def process(self,feature=None, rootIn=''):
         # We have to set every node in the network to it's "unprocessed" state
-                 
-        for instanceName in self.networkDef.keys():
-            self.instanceMap[instanceName].resetProcessed()
 
         if feature==None:
             feature={}
