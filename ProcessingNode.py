@@ -3,8 +3,34 @@ ProcessingNode
 A processing node does some work on a system and returns the result.
 If the node has dependencies, it makes sure that the child node has 'processed' the feature first.
 
-Thus, processing node can form a computation graph (which should be acyclic).
+Thus, processing node can form a computation graph (which should be directed, acyclic) There ARE mechanisms for feedback (!).
 '''
+import sys
+sys.path.append('../')
+from  findclass.findclass import findclass
+def QuickInputNode(func,input_field):
+    def do_input(self,feature,context):
+        return func(feature,context)
+         
+    c = type(func.__name__, (ProcessingNode,), {'do_input':do_input})
+    node = {}
+    node['type'] = c
+    node['dependencies'] = {}
+    node['dependencies']['input'] = input_field
+    return node
+
+def QuickProcessingNode(func,input_field):
+    def do_process(self,feature,context):
+        return func(feature,context)
+    c = type(func.__name__, (ProcessingNode,), {'do_process':do_process})
+    node = {}
+    node['type'] = c
+    node['dependencies'] = {}
+    for k in input_field:
+        node['dependencies'][k] = input_field[k]
+    return node
+
+
 class ProcessingNode():
     def __init__(self,settings=None,dependencies=None,dependency_list=None,upstream_dependency_list=None):
         if settings==None:
@@ -18,50 +44,91 @@ class ProcessingNode():
 
         self.dependencies = dependencies
         self.dependency_list=dependency_list
+
         self.upstream_dependency_list=upstream_dependency_list
         self.settings = {}
         self.settings.update(settings)
-        if not 'name' in self.settings:
-            raise Exception("unique name property is required when creating a processing Node")
         self.retVal=None
         self.do_init() 
+        #assert 'name' in self.settings
 
     def do_init(self):
-        raise Exception('Not Implemented')
+        #raise Exception('Not Implemented')
         pass
     
     def process(self,feature,lastFeature={}):
         #print(self.settings['name']+".process()")
-        #print("feature=")
-        #print(feature)
         self.lastFeature = lastFeature
         self.feature = feature
         for k in self.dependencies.keys():
             if self.dependencies[k].settings['name'] not in feature: 
                 self.dependencies[k].process(feature)
-        feature[self.settings['name']] =  self.do_process()
+        features = {}
+        for key in self.settings:
+                features[key] = self.settings[key]
+        for key in self.dependency_list:
+                features[key] = self.get_dependency_value(key)
+
+        for key in self.upstream_dependency_list:
+            features[key] = self.get_upstream_dependency_value(key)
+        
+        try:
+            feature[self.settings['name']] =  self.do_process(features,self.settings)
+        except Exception as e:
+            print(self.settings)
+            print(self.settings['name'])
+            print(features )
+            print(self.settings )
+            #print(feature[self.settings['name']])
+            raise e
+
         self.retVal=feature
         return self.retVal
 
-
+    def getValueForSetting(self,dependency):
+            if(isinstance(dependency,tuple)):
+                breadcrumb = list(dependency)
+                className =breadcrumb[0] 
+                breadcrumb.pop(0)
+                try:
+                    valueKey = self.feature[className] #First look for a value from the network
+                except Exception as e:
+                    print(self.feature )
+                    print(className )
+                    raise e
+                for k in breadcrumb:
+                    valueKey = valueKey[k] # recursively seek the value
+            else:
+                valueKey = dependency # If the value is not a tuple, it is a hard coded setting
+            return valueKey 
 
     def get_dependency_value(self,key):
         valueKey = None
-        if self.dependency_list:
-            try:
-                valueKey = self.feature[self.dependency_list [key]] #First look for a value from the network
-            except:
-                valueKey = self.feature [self.settings['input'][key]] #if that fails, look for a declared input.
-            return valueKey 
-        return None
+        dependency = self.dependency_list [key]
+        if(isinstance(dependency,dict)):
 
+            d = {}
+            for dkey in dependency.keys():
+                d[dkey] = self.getValueForSetting(dependency[dkey])
+            
+            return d
+        else:
+            return self.getValueForSetting(dependency)
     def get_upstream_dependency_value(self,key):
-        if self.upstream_dependency_list:
-            valueKey = None
-            if self.upstream_dependency_list [key] in self.lastFeature:
-                valueKey = self.lastFeature[self.upstream_dependency_list [key]]
-            return valueKey 
-        return None
+        valueKey = None
+        try:
+            if(isinstance(self.upstream_dependency_list [key],tuple)):
+                breadcrumb = list(self.upstream_dependency_list [key])
+                className =breadcrumb[0] 
+                breadcrumb.pop(0)
+                valueKey = self.lastFeature[className] #First look for a value from the network
+                for k in breadcrumb:
+                    valueKey = valueKey[k] # recursively seek the value
+            else:
+                valueKey = self.settings[k] # If the value is not a tuple, it is a hard coded setting
+        except:
+            pass
+        return valueKey 
 
     def get_dependency_instance(self,key):
         if self.dependency_list:
@@ -69,16 +136,28 @@ class ProcessingNode():
             return valueKey 
         return None
 
+    def do_input(self,features,settings):
+        raise Exception ("Not implemented")
 
-    def do_process(self):
-        raise Exception('Not Implemented')
-        pass
-    
+    def do_process(self,features,settings):
+        try:
+            return self.do_input(features['input'],settings)
+        except Exception as e:
+            import traceback
+            err_str =  traceback.format_exc(limit=50)
+            print(err_str)
+            print('missing ["input"]--------------')
+            print(feature)
+            print('--------------')
+            raise e
     def setSetting(self,k,val):
         self.settings[k]=val
    
     def getSetting(self,k):
         return self.settings[k]
+
+    def getSettings(self):
+        return self.settings
 
     def setValue(self,dictData={}):
         self.feature[self.settings['name']] = dictData

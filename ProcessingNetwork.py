@@ -7,43 +7,73 @@ The PN constructs this network, and then gives access to the central 'process' m
 # ----- {k: bigdict.get(k, None) for k in ('l', 'm', 'n')} <--- filters for relevant keys
 # TODO: Use Named Dependencies instead of a straight positional list
 # TODO: pas feature and last feature in a way better way
+from findclass.findclass import findclass
 
 class ProcessingNetwork():
+
     def __init__(self,networkDef,root=''):
+        self.networkTemplate = networkDef.copy()
         self.networkDef = networkDef
         self.instanceMap = {}
         self.root = root
         for instanceName in networkDef:
+            networkDef[instanceName]['name'] = instanceName
             self.createNodeRecursive(networkDef[instanceName])
         self.lastFeature = {}
+    def getNetworkTemplate(self):
+        return self.networkTemplate
 
     def createNodeRecursive(self,instanceDict):
         iName = instanceDict['name']
         if not iName in self.instanceMap:
-            if 'settings' in self.networkDef[iName]:
-                settings=self.networkDef[iName]['settings']
-            else:
-                settings=None
-            upstream_dependency_list = []
+            #if 'settings' in self.networkDef[iName]:
+            #    settings=self.networkDef[iName]['settings']
+            #else:
+            #    settings=None
+            upstream_dependency_list = {}
+            dependency_list = {}
+            settings = {}
             if 'upstream_dependencies' in self.networkDef[iName]:
-                upstream_dependency_list=self.networkDef[iName]['upstream_dependencies']
+                input_list=self.networkDef[iName]['upstream_dependencies']
+                for ik in input_list.keys():
+                    iItem = input_list[ik]
+                    if isinstance(iItem, tuple):
+                        upstream_dependency_list[ik]= iItem
+                    else:
+                        settings[ik] = iItem
+
 
             if 'dependencies' in self.networkDef[iName]:
-                dependency_list=self.networkDef[iName]['dependencies']
-            else:
-                dependency_list=None
-            settings['name'] = iName
-
+                input_list=self.networkDef[iName]['dependencies']
+                for ik in input_list.keys():
+                    iItem = input_list[ik]
+                    dependency_list[ik]= iItem
+                    #if isinstance(iItem, tuple):
+                    #    dependency_list[ik]= iItem
+                    #else:
+                    #    settings[ik] = iItem
 
             # Assign the type
-            typeVar = self.networkDef[iName]['type']
-            
-            if isinstance(self.networkDef[iName]['type'], str):
-                import importlib
-                typeVar = getattr(importlib.import_module(self.networkDef[iName]['module']),self.networkDef[iName]['type'])
+            if 'module' in self.networkDef[iName]:
+                typeVar = findclass(self.networkDef[iName]['type'],self.networkDef[iName]['module'])
+            else:
+                typeVar = findclass(self.networkDef[iName]['type'])
 
-
-            self.instanceMap[iName] = typeVar(settings=settings,dependency_list=dependency_list,upstream_dependency_list=upstream_dependency_list)            
+            try:
+                self.instanceMap[iName] = typeVar(settings=settings,dependency_list=dependency_list,upstream_dependency_list=upstream_dependency_list)            
+            except Exception as e:
+                import traceback
+                err_str =  traceback.format_exc(limit=50)
+                print(err_str)
+                print("Trouble instancing a ProcessingNode, here is some info:")
+                print("-----------------------------------")
+                print("iName",iName)
+                print("settings",settings)
+                print("dependency_list",dependency_list)
+                print("upstream_dependency_list",upstream_dependency_list)
+                print("type",typeVar)
+                print("-----------Re-raising error---------")
+                raise e
             instance = self.instanceMap[iName] 
             instanceDict['instance'] = self.instanceMap[iName]        
         
@@ -51,16 +81,25 @@ class ProcessingNetwork():
            
             for depParameter in instanceDict['dependencies'].keys():
                 depName = instanceDict['dependencies'][depParameter]
-                depInstance = self.createNodeRecursive(self.networkDef[depName])
-                instance.setDependency(depParameter,depInstance) 
+                if isinstance(depName,tuple):
+                    try:
+                        depInstance = self.createNodeRecursive(self.networkDef[depName[0]])
+                        instance.setDependency(depParameter,depInstance) 
+                    except:
+                        pass
         return self.instanceMap[iName]
 
     def getInstance(self,iName):
         return self.instanceMap[iName]
 
+    def do_preprocess(self):
+        pass
+    def do_postprocess(self):
+        pass
+
     def process(self,feature=None, rootIn=''):
         # We have to set every node in the network to it's "unprocessed" state
-
+        self.do_preprocess()
         if feature==None:
             feature={}
         targetNode = rootIn
@@ -79,6 +118,7 @@ class ProcessingNetwork():
             feature = self.instanceMap[targetNode].process(feature,self.lastFeature)
 
         self.lastFeature = feature
+        self.do_postprocess()
         return feature
 
     def __str__(self):
