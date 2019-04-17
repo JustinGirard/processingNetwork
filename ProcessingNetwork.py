@@ -11,11 +11,12 @@ from findclass.findclass import findclass
 
 class ProcessingNetwork():
 
-    def __init__(self,networkDef,root=''):
+    def __init__(self,networkDef,root='',context=None):
         self.networkTemplate = networkDef.copy()
         self.networkDef = networkDef
         self.instanceMap = {}
         self.root = root
+        self.globalsContext = context
         for instanceName in networkDef:
             networkDef[instanceName]['name'] = instanceName
             self.createNodeRecursive(networkDef[instanceName])
@@ -39,6 +40,10 @@ class ProcessingNetwork():
                     iItem = input_list[ik]
                     if isinstance(iItem, tuple):
                         upstream_dependency_list[ik]= iItem
+                    elif isinstance(iItem, list) and iItem[0] =='__ref':
+                        iItem = tuple(iItem)
+                        iItem = iItem[1:]
+                        upstream_dependency_list[ik]= iItem
                     else:
                         settings[ik] = iItem
 
@@ -57,8 +62,7 @@ class ProcessingNetwork():
             if 'module' in self.networkDef[iName]:
                 typeVar = findclass(self.networkDef[iName]['type'],self.networkDef[iName]['module'])
             else:
-                typeVar = findclass(self.networkDef[iName]['type'])
-
+                typeVar =findclass(self.networkDef[iName]['type'],context=self.globalsContext )
             try:
                 self.instanceMap[iName] = typeVar(settings=settings,dependency_list=dependency_list,upstream_dependency_list=upstream_dependency_list)            
             except Exception as e:
@@ -78,15 +82,51 @@ class ProcessingNetwork():
             instanceDict['instance'] = self.instanceMap[iName]        
         
             instance.setSetting('name',iName)
-           
+            #print('----------------------------------')
+            #print('-----------------')
+            #print('--------')
+            #print('dependencies for ', iName)
+            #import pprint
+            #pprint.pprint(dependency_list)
+            '''
             for depParameter in instanceDict['dependencies'].keys():
                 depName = instanceDict['dependencies'][depParameter]
                 if isinstance(depName,tuple):
+                    print('CREATING:', depName)
                     try:
                         depInstance = self.createNodeRecursive(self.networkDef[depName[0]])
                         instance.setDependency(depParameter,depInstance) 
                     except:
                         pass
+            '''            
+            for depParameter in instanceDict['dependencies'].keys():
+                depName = instanceDict['dependencies'][depParameter]
+                refrences_unprocessed = [depName]
+                ind = 0
+                while len(refrences_unprocessed) > 0:
+                    ind = ind + 1
+                    refrence = refrences_unprocessed.pop(0)
+
+                    # Recurse and search for sub refrences if you find a dict
+                    if isinstance(refrence,dict):
+                        for sub_refrence in list(refrence.values()):
+                            refrences_unprocessed.append(sub_refrence)
+                    
+                    # If you find an instance (Tuple) register the dependency
+                    if isinstance(refrence,list) and refrence[0]=='__ref':
+                        refrence = tuple(refrence)
+                        refrence = refrence[1:]
+
+                    if isinstance(refrence,tuple):
+                        #print('CREATING:',depParameter+str(ind),'-', refrence)
+                        try:
+                            depInstance = self.createNodeRecursive(self.networkDef[refrence[0]])
+                            instance.setDependency(depParameter+str(ind),depInstance) 
+                        except:
+                            pass
+            #print('--------')
+            #print('-----------------')
+            #print('----------------------------------')
         return self.instanceMap[iName]
 
     def getInstance(self,iName):

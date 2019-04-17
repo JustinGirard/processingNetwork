@@ -63,15 +63,22 @@ class ProcessingNode():
         for k in self.dependencies.keys():
             if self.dependencies[k].settings['name'] not in feature: 
                 self.dependencies[k].process(feature)
+        
+        # Re initalize and locate features
         features = {}
         for key in self.settings:
                 features[key] = self.settings[key]
         for key in self.dependency_list:
                 features[key] = self.get_dependency_value(key)
-
         for key in self.upstream_dependency_list:
             features[key] = self.get_upstream_dependency_value(key)
-        
+        for key in features:
+            self.settings[key] = features[key]
+
+        #print('SETTINGS:')
+        #print('features:',features)
+        #print('self.settings:',self.settings)
+        #print('SETTINGS END:')
         try:
             feature[self.settings['name']] =  self.do_process(features,self.settings)
         except Exception as e:
@@ -86,18 +93,20 @@ class ProcessingNode():
         return self.retVal
 
     def getValueForSetting(self,dependency):
+            if(isinstance(dependency,list) and dependency[0]=='__ref'):
+                dependency = tuple(dependency)
+                dependency=dependency[1:]
             if(isinstance(dependency,tuple)):
                 breadcrumb = list(dependency)
                 className =breadcrumb[0] 
                 breadcrumb.pop(0)
-                try:
-                    valueKey = self.feature[className] #First look for a value from the network
-                except Exception as e:
-                    print(self.feature )
-                    print(className )
-                    raise e
+                valueKey = self.feature[className] #First look for a value from the network
                 for k in breadcrumb:
-                    valueKey = valueKey[k] # recursively seek the value
+                    try:
+                        valueKey = valueKey[k] # recursively seek the value
+                    except:
+                        valueKey = None
+                        break
             else:
                 valueKey = dependency # If the value is not a tuple, it is a hard coded setting
             return valueKey 
@@ -117,6 +126,9 @@ class ProcessingNode():
     def get_upstream_dependency_value(self,key):
         valueKey = None
         try:
+            if(isinstance(self.upstream_dependency_list [key],list) and self.upstream_dependency_list [key][0]=='__ref'):
+                self.upstream_dependency_list [key] = tuple(self.upstream_dependency_list [key])
+                self.upstream_dependency_list [key]= self.upstream_dependency_list [key][1:]
             if(isinstance(self.upstream_dependency_list [key],tuple)):
                 breadcrumb = list(self.upstream_dependency_list [key])
                 className =breadcrumb[0] 
@@ -130,11 +142,11 @@ class ProcessingNode():
             pass
         return valueKey 
 
-    def get_dependency_instance(self,key):
-        if self.dependency_list:
-            valueKey = self.dependencies[key]
-            return valueKey 
-        return None
+    #def get_dependency_instance(self,key):
+    #    if self.dependency_list:
+    #        valueKey = self.dependencies[key]
+    #        return valueKey 
+    #    return None
 
     def do_input(self,features,settings):
         raise Exception ("Not implemented")
@@ -147,7 +159,7 @@ class ProcessingNode():
             err_str =  traceback.format_exc(limit=50)
             print(err_str)
             print('missing ["input"]--------------')
-            print(feature)
+            print(features)
             print('--------------')
             raise e
     def setSetting(self,k,val):
