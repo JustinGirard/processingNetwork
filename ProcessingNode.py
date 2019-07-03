@@ -108,14 +108,19 @@ class ProcessingNode():
                         valueKey = None
                         break
             else:
-                valueKey = dependency # If the value is not a tuple, it is a hard coded setting
+                d = {}
+                if(isinstance(dependency,dict)):
+                    for dkey in dependency.keys():
+                        d[dkey] = self.getValueForSetting(dependency[dkey])
+                else:
+                    d = dependency
+                valueKey = d # If the value is not a tuple, it is a hard coded setting
             return valueKey 
 
     def get_dependency_value(self,key):
         valueKey = None
         dependency = self.dependency_list [key]
         if(isinstance(dependency,dict)):
-
             d = {}
             for dkey in dependency.keys():
                 d[dkey] = self.getValueForSetting(dependency[dkey])
@@ -123,6 +128,7 @@ class ProcessingNode():
             return d
         else:
             return self.getValueForSetting(dependency)
+
     def get_upstream_dependency_value(self,key):
         valueKey = None
         try:
