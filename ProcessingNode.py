@@ -168,7 +168,7 @@ class ProcessingNode():
             err_str =  traceback.format_exc(limit=50)
             print(err_str)
             print('missing ["input"]--------------')
-            print(features)
+            #print(features)
             print('--------------')
             raise e
     def setSetting(self,k,val):
