@@ -148,13 +148,26 @@ class ProcessingNetwork():
 
         if targetNode == '':
             for instanceName in self.networkDef.keys():
-                #print(instanceName + " called by ProcessingNetwork")
-                feature = self.instanceMap[instanceName].process(feature,self.lastFeature)
+                if not instanceName  in feature or not feature[instanceName]: 
+                    #print(instanceName + " called by ProcessingNetwork (ITERATE) " + str(type( self.instanceMap[instanceName])))
+                    #print("")
+                    #print("")
+                    #print("have keys:")
+                    #print("--------------")
+                    #import pprint
+                    #pprint.pprint(feature)
+                    feature = self.instanceMap[instanceName].process(feature,self.lastFeature)
+                    #print("")
+                    #print("")
+                    #pprint.pprint(feature)
+                    #print("")
+                    #print("")
+                    #print("")
                 #print("back in ProcessingNetwork")
                 #print("call from " + instanceName + " has returned with feature=")
                 #print(feature)
         else:
-            #print(targetNode + " called by ProcessingNetwork")
+            print(targetNode + " called by ProcessingNetwork")
             feature = self.instanceMap[targetNode].process(feature,self.lastFeature)
 
         self.lastFeature = feature
