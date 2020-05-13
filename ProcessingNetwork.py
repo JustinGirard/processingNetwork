@@ -113,7 +113,7 @@ class ProcessingNetwork():
                             refrences_unprocessed.append(sub_refrence)
                     
                     # If you find an instance (Tuple) register the dependency
-                    if isinstance(refrence,list) and refrence[0]=='__ref':
+                    if isinstance(refrence,list) and len(refrence) > 0 and refrence[0]=='__ref':
                         refrence = tuple(refrence)
                         refrence = refrence[1:]
 

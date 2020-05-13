@@ -93,7 +93,7 @@ class ProcessingNode():
         return self.retVal
 
     def getValueForSetting(self,dependency):
-            if(isinstance(dependency,list) and dependency[0]=='__ref'):
+            if(isinstance(dependency,list) and  len(dependency) > 0 and dependency[0]=='__ref'):
                 dependency = tuple(dependency)
                 dependency=dependency[1:]
             if(isinstance(dependency,tuple)):
