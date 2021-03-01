@@ -130,11 +130,9 @@ class ProcessingNetwork():
 
                     if isinstance(refrence,tuple):
                         #print('CREATING:',depParameter+str(ind),'-', refrence)
-                        #print('for :' + str(refrence))
                         try:
                             depInstance = self.createNodeRecursive(self.networkDef[refrence[0]])
-                            #instance.setDependency(depParameter+str(ind),depInstance) 
-                            instance.setDependency(str(refrence),depInstance) 
+                            instance.setDependency(depParameter+str(ind),depInstance) 
                         except:
                             pass
             #print('--------')
@@ -180,7 +178,7 @@ class ProcessingNetwork():
                 #print("call from " + instanceName + " has returned with feature=")
                 #print(feature)
         else:
-            #print(targetNode + " called by ProcessingNetwork")
+            print(targetNode + " called by ProcessingNetwork")
             feature = self.instanceMap[targetNode].process(feature,self.lastFeature)
 
         self.lastFeature = feature

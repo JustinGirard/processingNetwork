@@ -5,6 +5,110 @@ If the node has dependencies, it makes sure that the child node has 'processed' 
 
 Thus, processing node can form a computation graph (which should be directed, acyclic) There ARE mechanisms for feedback (!).
 '''
+
+class lazy_function():
+    def execute():
+        return None
+    
+    def __repr__(self):
+        return str(repr(self.execute()))
+    
+    def __dict__ (self):
+        return dict(eval(repr(self.execute())))
+    
+    def __str__(self):
+        return str(repr(self.execute()))
+    
+    def __add__(self,ob):
+        return ob+self.execute()
+
+def lazy_get(self,key,val):
+    if lazy_function == type(val):
+        #print("FUNC VAL for key "+str(key))
+        retval = val.execute() 
+        #print("WITH TYPE  "+str(type(retval)))
+        return retval
+    else:
+        if type(val) == dict:
+            return lazy_dict(val)
+        elif type(val) == list:
+            return lazy_list(val)
+        elif type(val) == tuple:
+            return lazy_tuple(val)
+        else:
+            #print("DEFAULT VAL")
+            return val
+
+class lazy_dict(dict):
+    def __getitem__(self,key):
+        #print("__________________________________")
+        #print("DICT GET ITEM> " + str(key))
+        val = super().__getitem__(key)
+        item =lazy_get(self,key,val)
+        while type(item) == lazy_function:
+                item = item.execute()
+        
+        #print("GOT ITEM> " + str(item))
+        #print("GOT TYPE> " + str(type(item)))
+        #print("__________________________________")
+        return item
+    def copy(self):
+        return lazy_dict(super().copy())
+        
+    '''
+    def __repr__(self):
+        r_dic = {}
+        for k in self.keys():
+            r_dic[k] = lazy_get(self,k,self[k])
+        import pprint
+        print("GENERATING... ")
+        print(r_dic.keys())
+        pprint.pprint(r_dic)
+        print("....FINISHED... ")
+        
+        return str(r_dic)
+    '''
+    
+    
+class lazy_list(list):
+    def __getitem__(self,key):
+        val = super().__getitem__(key)
+        item = lazy_get(self,key,val)  
+        while type(item) == lazy_function:
+                item = item.execute()
+        return item          
+    
+    def copy(self):
+        return lazy_list(super().copy())
+    
+    '''
+    def __repr__(self):
+        r_list = [] 
+        for i in range(0,len(self)):
+            r_list.append(lazy_get(self,i,self[i]))
+        return repr(r_list)
+    '''
+class lazy_tuple(tuple):
+    def __getitem__(self,key):
+        val = super().__getitem__(key)
+        item = lazy_get(self,key,val)
+        while type(item) == lazy_function:
+                item = item.execute()
+        return item
+    
+    def copy(self):
+        return lazy_tuple(super().copy())
+
+    '''
+    def __repr__(self):
+        r_tuple = tuple()
+        for i in range(0,len(self)):
+            r_tuple.append(lazy_get(self,i,self[i]))
+        return repr(r_tuple)
+    '''
+
+    
+
 import sys
 sys.path.append('../')
 from  findclass.findclass import findclass
@@ -31,8 +135,8 @@ def QuickProcessingNode(func,input_field):
     return node
 
 
-class ProcessingNode():
-    def __init__(self,settings=None,dependencies=None,dependency_list=None,upstream_dependency_list=None):
+class ProcessingNodeDynamic():
+    def __init__(self,settings=None,dependencies=None,dependency_list=None,upstream_dependency_list=None,lazy_load=False):
         if settings==None:
             settings={}
         if dependencies==None:
@@ -46,9 +150,12 @@ class ProcessingNode():
         self.dependency_list=dependency_list
 
         self.upstream_dependency_list=upstream_dependency_list
-        self.settings = {}
+        self.settings = lazy_dict({})
         self.settings.update(settings)
         self.retVal=None
+        self.lazy_load = lazy_load
+        
+        
         self.do_init() 
         #assert 'name' in self.settings
 
@@ -56,13 +163,17 @@ class ProcessingNode():
         #raise Exception('Not Implemented')
         pass
     
-    def process(self,feature,lastFeature={}):
+    def process(self,feature_in,lastFeature={}):
         #print(self.settings['name']+".process()")
         self.lastFeature = lastFeature
-        self.feature = feature
-        for k in self.dependencies.keys():
-            if self.dependencies[k].settings['name'] not in feature: 
-                self.dependencies[k].process(feature)
+        self.feature = feature_in
+        #print("ORIG FEATURE")
+        #print(self.feature)
+        #for k in self.dependencies.keys():
+        #    if self.dependencies[k].settings['name'] not in feature_in: 
+        #        self.dependencies[k].process(feature_in)
+        
+        #print("INITALIZING KEYS FOR THIS NODE" + str(list(self.dependencies.keys())))
         
         # Re initalize and locate features
         features = {}
@@ -80,36 +191,73 @@ class ProcessingNode():
         #print('self.settings:',self.settings)
         #print('SETTINGS END:')
         try:
-            feature[self.settings['name']] =  self.do_process(features,self.settings)
+            feature_in[self.settings['name']] =  self.do_process(lazy_dict(features),self.settings)
         except Exception as e:
             print(self.settings)
             print(self.settings['name'])
-            print(features )
+            print(feature_in )
             print(self.settings )
             #print(feature[self.settings['name']])
             raise e
 
-        self.retVal=feature
+        self.retVal=feature_in
         return self.retVal
+    def dynamicProcess(self,classname):
+        for str_tuple in self.dependencies.keys():
+            tup = eval(str_tuple)
+            #print(type(tup))
+            #print(tup)
+            if tup[0] == classname:
+                #print("PROCESSING" + classname)
+                #print("PROCESSING FEATURE")
+                #print(self.feature)
+
+                obj =  self.dependencies[str_tuple]
+                #print('--------------------')
+                #print('--------------------')
+                #print('--------------------')
+                self.dependencies[str_tuple].process(self.feature)
 
     def getValueForSetting(self,dependency):
             if(isinstance(dependency,list) and  len(dependency) > 0 and dependency[0]=='__ref'):
                 dependency = tuple(dependency)
+                classname =dependency [1] 
                 dependency=dependency[1:]
+                #print("LOOKING UP REFRENCE HERE")
+                #print(dependency)
+                        
+                
             if(isinstance(dependency,tuple)):
                 breadcrumb = list(dependency)
                 className =breadcrumb[0] 
                 breadcrumb.pop(0)
-                try:
-                    valueKey = self.feature[className] #First look for a value from the network
-                except:
-                    return None
-                for k in breadcrumb:
+                def extract_value_inline():
+                    #print("EXTRACTING VALUE FOR "+classname)
+                    #print("EXTRACTING VALUE FOR "+className)
                     try:
-                        valueKey = valueKey[k] # recursively seek the value
+                        if not classname in self.feature:
+                            self.dynamicProcess(classname)
+                        valueKey = self.feature[className] #First look for a value from the network
+                        #print("EXTRACTING VAL with type "+ str(type(valueKey)))
                     except:
-                        valueKey = None
-                        break
+                        return None
+                    for k in breadcrumb:
+                        try:
+                            #print("EXTRACTING V2")
+                            valueKey = valueKey[k] # recursively seek the value
+                        except:
+                            #print("EXTRACTING V3")
+                            valueKey = None
+                            break
+                    #print("RETURNING VAL with type "+ str(type(valueKey)))
+                    return valueKey
+                lf = lazy_function()
+                lf.execute = extract_value_inline 
+                
+                #if self.lazy_load ==True:
+                valueKey = lf
+                #else:
+                #    valueKey = extract_value_inline()
             else:
                 d = {}
                 if(isinstance(dependency,dict)):
@@ -161,6 +309,7 @@ class ProcessingNode():
         raise Exception ("Not implemented")
 
     def do_process(self,features,settings):
+        
         try:
             return self.do_input(features['input'],settings)
         except Exception as e:

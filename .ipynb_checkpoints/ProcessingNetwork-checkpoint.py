@@ -9,6 +9,17 @@ The PN constructs this network, and then gives access to the central 'process' m
 # TODO: pas feature and last feature in a way better way
 from findclass.findclass import findclass
 
+#def generic_func():
+#    pass
+
+#class lazy_dict(dict):
+#    def __getitem__(self,key):
+#        val = super().__getitem__(key)
+#        if type(generic_func) == type(val):
+#            return val()
+#        else:
+#            return val
+
 class ProcessingNetwork():
 
     def __init__(self,networkDef,root='',context=None):
@@ -119,9 +130,11 @@ class ProcessingNetwork():
 
                     if isinstance(refrence,tuple):
                         #print('CREATING:',depParameter+str(ind),'-', refrence)
+                        #print('for :' + str(refrence))
                         try:
                             depInstance = self.createNodeRecursive(self.networkDef[refrence[0]])
-                            instance.setDependency(depParameter+str(ind),depInstance) 
+                            #instance.setDependency(depParameter+str(ind),depInstance) 
+                            instance.setDependency(str(refrence),depInstance) 
                         except:
                             pass
             #print('--------')
@@ -167,7 +180,7 @@ class ProcessingNetwork():
                 #print("call from " + instanceName + " has returned with feature=")
                 #print(feature)
         else:
-            print(targetNode + " called by ProcessingNetwork")
+            #print(targetNode + " called by ProcessingNetwork")
             feature = self.instanceMap[targetNode].process(feature,self.lastFeature)
 
         self.lastFeature = feature
